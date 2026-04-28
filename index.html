@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registration Form</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <script src="script.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Registration</h1>
+      <p>Please fill in the information below</p>
+    </header>
+
+    <form id="registrationForm" novalidate>
+
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="Full name" required />
+      </div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="your@email.com" required />
+      </div>
+
+      <div class="field">
+        <label for="dob">Date of Birth</label>
+        <input type="date" id="dob" name="dob" required />
+      </div>
+
+      <div class="field">
+        <label>Gender</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="gender" value="male" /> Male
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="gender" value="female" /> Female
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="gender" value="not_informed" checked /> Not Informed
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="country">Country</label>
+        <select id="country" name="country" required>
+          <option value="" disabled selected>Select your country</option>
+          <option value="BR">Brazil</option>
+          <option value="US">United States</option>
+          <option value="GB">United Kingdom</option>
+          <option value="CA">Canada</option>
+          <option value="AU">Australia</option>
+          <option value="DE">Germany</option>
+          <option value="FR">France</option>
+          <option value="JP">Japan</option>
+          <option value="CN">China</option>
+          <option value="IN">India</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="race">Race</label>
+        <select id="race" name="race" required>
+          <option value="" disabled selected>Select an option</option>
+          <option value="asian">Asian</option>
+          <option value="white">White</option>
+          <option value="black">Black</option>
+          <option value="indigenous">Indigenous</option>
+          <option value="mixed_race">Mixed-race</option>
+          <option value="not_informed">Not Informed</option>
+        </select>
+      </div>
+
+      <button type="submit">Submit</button>
+
+    </form>
+
+    <div id="successMsg" class="success-msg" hidden>
+      Registration saved successfully.
+    </div>
+  </div>
+
+</body>
+</html>

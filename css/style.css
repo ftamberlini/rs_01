@@ -1,0 +1,200 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-color: #f4f4f0;
+  color: #2d2d2d;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.container {
+  background-color: #ffffff;
+  width: 100%;
+  max-width: 480px;
+  border-radius: 10px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+header {
+  background-color: #3b3f45;
+  color: #f0ede8;
+  padding: 2rem 2.5rem;
+}
+
+header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+header p {
+  margin-top: 0.35rem;
+  font-size: 0.875rem;
+  color: #b0acaa;
+}
+
+form {
+  padding: 2rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.field > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6b6b;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="date"],
+select {
+  width: 100%;
+  padding: 0.65rem 0.9rem;
+  border: 1.5px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: #2d2d2d;
+  background-color: #fafaf8;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+input[type="text"]::placeholder,
+input[type="email"]::placeholder {
+  color: #bbb;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="date"]:focus,
+select:focus {
+  outline: none;
+  border-color: #7a8a99;
+  box-shadow: 0 0 0 3px rgba(122, 138, 153, 0.15);
+  background-color: #fff;
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b6b6b' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  padding-right: 2.2rem;
+  cursor: pointer;
+}
+
+.radio-group {
+  display: flex;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+  padding-top: 0.1rem;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  color: #2d2d2d;
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+  accent-color: #3b3f45;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+button[type="submit"] {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background-color: #3b3f45;
+  color: #f0ede8;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background-color 0.18s;
+}
+
+button[type="submit"]:hover {
+  background-color: #2d3035;
+}
+
+button[type="submit"]:active {
+  background-color: #22262a;
+}
+
+button[type="submit"]:disabled {
+  background-color: #7a8a99;
+  cursor: default;
+}
+
+.email-confirmed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f4f4f0;
+  border: 1.5px solid #ddd;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.95rem;
+  color: #2d2d2d;
+}
+
+.email-confirmed span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#btnChangeEmail {
+  background: none;
+  border: none;
+  color: #7a8a99;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 0 0 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+#btnChangeEmail:hover {
+  color: #3b3f45;
+}
+
+.success-msg {
+  margin: 0 2.5rem 2rem;
+  padding: 0.75rem 1rem;
+  background-color: #edf5ee;
+  border-left: 4px solid #5a9467;
+  border-radius: 4px;
+  color: #3a6b44;
+  font-size: 0.9rem;
+  font-weight: 500;
+}

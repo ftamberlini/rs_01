@@ -1,0 +1,5 @@
+id,name,email,date_of_birth,gender,country,race
+1,João Silva,joao@example.com,1990-05-15,male,BR,mixed_race
+2,Fernando Tamberlini,ftamberlini@gmail.com,1978-02-09,male,BR,mixed_race
+3,Maria Souza,maria@example.com,1985-11-22,female,BR,black
+4,Ana Lima,ana@example.com,2000-03-01,female,BR,white
