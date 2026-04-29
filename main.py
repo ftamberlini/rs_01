@@ -34,6 +34,8 @@ _movie_wris: dict[str, list] = {}
 for _r in _load_tsv(Path("data/movie_writer.tsv")):
     _movie_wris.setdefault(_r["MOVIEID"], []).append(_r["ID_WRITER"])
 
+_ml_data: dict[str, dict] = {r["MOVIEID"]: r for r in _load_tsv(Path("data/movie_ml.tsv"))}
+
 _imdb_genres: dict[str, list[str]] = {}
 for _r in _load_tsv(Path("data/movie_imdb_genres.tsv")):
     _imdb_genres.setdefault(_r["MOVIEID"], []).append(_r["GENRE"])
@@ -51,19 +53,52 @@ for _r in _load_tsv(Path("data/movie_tags.tsv")):
     _movie_tags.setdefault(_r["MOVIEID"], []).append({"tag": _r["TAG"], "count": count})
 
 
-def _genres(movieid: str) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for g in _imdb_genres.get(movieid, []) + _ml_genres.get(movieid, []):
-        key = g.lower()
-        if key not in seen:
-            seen.add(key)
-            result.append(g)
-    return result
+def _genres_imdb(movieid: str) -> list[str]:
+    return _imdb_genres.get(movieid, [])
+
+
+def _genres_ml(movieid: str) -> list[str]:
+    return _ml_genres.get(movieid, [])
 
 
 def _tags(movieid: str) -> list[dict]:
     return sorted(_movie_tags.get(movieid, []), key=lambda x: x["count"], reverse=True)
+
+
+def _clean(val: str) -> str:
+    v = (val or "").strip()
+    return "" if v in ("N/A", "") else v
+
+
+def _ratings(movieid: str, row: dict) -> list[dict]:
+    result: list[dict] = []
+    ml = _ml_data.get(movieid, {})
+
+    ml_score = _clean(ml.get("RATING_ML", ""))
+    if ml_score:
+        entry: dict = {"source": "Movie Lens", "score": f"{float(ml_score):.1f}/5"}
+        ml_votes = _clean(ml.get("VOTES_ML", ""))
+        if ml_votes:
+            entry["votes"] = ml_votes
+        result.append(entry)
+
+    imdb_score = _clean(row.get("IMDBRATING", ""))
+    if imdb_score:
+        entry = {"source": "IMDb", "score": f"{float(imdb_score):.1f}/10"}
+        imdb_votes = _clean(row.get("IMDBVOTES", ""))
+        if imdb_votes:
+            entry["votes"] = imdb_votes
+        result.append(entry)
+
+    rt = _clean(row.get("RTRATING", ""))
+    if rt:
+        result.append({"source": "Rotten Tomatoes", "score": f"{float(rt):.0f}/100"})
+
+    mc = _clean(row.get("MCRATING", ""))
+    if mc:
+        result.append({"source": "Metacritic", "score": f"{float(mc):.0f}/100"})
+
+    return result
 
 
 def _people(movieid: str, role_map: dict, person_dict: dict) -> list[dict]:
@@ -122,12 +157,12 @@ async def movies():
             "cast":       r["ACTORS"],
             "plot":       r["PLOT"],
             "poster":     r["POSTER"],
-            "ratings":    r["RATINGS"],
-            "imdb_votes": r["IMDBVOTES"],
+            "ratings":    _ratings(r.get("MOVIEID", ""), r),
             "awards":     r["AWARDS"],
             "directors":  _people(r.get("MOVIEID", ""), _movie_dirs, _directors),
             "writers":    _people(r.get("MOVIEID", ""), _movie_wris, _writers_dict),
-            "genres_list": _genres(r.get("MOVIEID", "")),
+            "genres_imdb": _genres_imdb(r.get("MOVIEID", "")),
+            "genres_ml":   _genres_ml(r.get("MOVIEID", "")),
             "tags":        _tags(r.get("MOVIEID", "")),
         }
         for r in sample

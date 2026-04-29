@@ -395,6 +395,7 @@ button[type="submit"].btn {
   width: 100%;
 }
 
+.rating-badge.rb-ml   { border-color: #6b9fd4; background: #f0f6ff; }
 .rating-badge.rb-imdb { border-color: #e8c30b; background: #fffbea; }
 .rating-badge.rb-rt   { border-color: #f87060; background: #fff4f2; }
 .rating-badge.rb-mc   { border-color: #6cc000; background: #f4ffea; }

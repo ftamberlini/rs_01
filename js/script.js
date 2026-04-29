@@ -164,9 +164,9 @@ function showMovieDetail(movie) {
   detailPoster.onerror = () => { detailPoster.onerror = null; detailPoster.src = POSTER_PLACEHOLDER; };
   detailPoster.src     = movie.poster;
   document.getElementById('detailTitle').textContent  = movie.title;
-  renderRatings(movie.ratings, movie.imdb_votes);
+  renderRatings(movie.ratings);
   document.getElementById('detailYear').textContent   = movie.year;
-  document.getElementById('detailReleased').textContent = movie.released;
+  document.getElementById('detailReleased').textContent = formatDate(movie.released);
   document.getElementById('detailRuntime').textContent  = movie.runtime;
   document.getElementById('detailCountry').textContent  = movie.country;
   document.getElementById('detailLanguage').textContent = movie.language;
@@ -177,49 +177,33 @@ function showMovieDetail(movie) {
   document.getElementById('detailAwards').textContent   = movie.awards !== 'N/A' ? movie.awards : '—';
   document.getElementById('detailPlot').textContent     = movie.plot;
   renderPeople(movie.directors, movie.writers);
-  renderGenresTags(movie.genres_list, movie.tags);
+  renderGenresTags(movie.genres_imdb, movie.genres_ml, movie.tags);
 }
 
-function renderGenresTags(genres, tags) {
+function renderGenresTags(genresImdb, genresMl, tags) {
   const container = document.getElementById('detailGenresTags');
   container.innerHTML = '';
-  if ((!genres || genres.length === 0) && (!tags || tags.length === 0)) return;
 
-  if (genres && genres.length > 0) {
+  function addChipRow(label, items, chipClass, textFn) {
+    if (!items || items.length === 0) return;
     const row = document.createElement('div');
     row.className = 'chip-row';
-
-    const label = document.createElement('span');
-    label.className = 'meta-label';
-    label.textContent = 'Genres';
-    row.appendChild(label);
-
-    genres.forEach(g => {
+    const lbl = document.createElement('span');
+    lbl.className   = 'meta-label';
+    lbl.textContent = label;
+    row.appendChild(lbl);
+    items.forEach(item => {
       const chip = document.createElement('span');
-      chip.className   = 'chip chip--genre';
-      chip.textContent = g;
+      chip.className   = `chip ${chipClass}`;
+      chip.textContent = textFn(item);
       row.appendChild(chip);
     });
     container.appendChild(row);
   }
 
-  if (tags && tags.length > 0) {
-    const row = document.createElement('div');
-    row.className = 'chip-row';
-
-    const label = document.createElement('span');
-    label.className = 'meta-label';
-    label.textContent = 'Tags';
-    row.appendChild(label);
-
-    tags.forEach(({ tag, count }) => {
-      const chip = document.createElement('span');
-      chip.className   = 'chip chip--tag';
-      chip.textContent = `${tag} (${count})`;
-      row.appendChild(chip);
-    });
-    container.appendChild(row);
-  }
+  addChipRow('Genres IMDB', genresImdb, 'chip--genre', g => g);
+  addChipRow('Genres ML',   genresMl,   'chip--genre', g => g);
+  addChipRow('Tags', tags, 'chip--tag', ({ tag, count }) => `${tag} (${count})`);
 }
 
 function renderPeople(directors, writers) {
@@ -268,33 +252,48 @@ function renderPeople(directors, writers) {
   });
 }
 
-function renderRatings(ratingsStr, imdbVotes) {
+function formatDate(raw) {
+  if (!raw) return '';
+  const d = new Date(raw + 'T00:00:00');
+  if (isNaN(d)) return raw;
+  const dd  = String(d.getUTCDate()).padStart(2, '0');
+  const mmm = d.toLocaleString('en', { month: 'short', timeZone: 'UTC' });
+  const yyyy = d.getUTCFullYear();
+  return `${dd} - ${mmm} - ${yyyy}`;
+}
+
+function renderRatings(ratings) {
   const container = document.getElementById('detailRatings');
   container.innerHTML = '';
-  if (!ratingsStr || ratingsStr === 'N/A') return;
+  if (!ratings || ratings.length === 0) return;
 
-  ratingsStr.split(' | ').forEach(part => {
-    const sep = part.indexOf(': ');
-    if (sep === -1) return;
-    const source = part.slice(0, sep).trim();
-    const value  = part.slice(sep + 2).trim();
+  const sourceClass = {
+    'Movie Lens':      'rb-ml',
+    'IMDb':            'rb-imdb',
+    'Rotten Tomatoes': 'rb-rt',
+    'Metacritic':      'rb-mc',
+  };
 
+  ratings.forEach(({ source, score, votes }) => {
     const badge = document.createElement('div');
+    badge.className = `rating-badge ${sourceClass[source] ?? ''}`.trim();
 
-    if (source.includes('Internet Movie Database')) {
-      badge.className = 'rating-badge rb-imdb';
-      badge.innerHTML = `<span class="rb-source">IMDb</span>
-        <span class="rb-score">${value}</span>
-        ${imdbVotes && imdbVotes !== 'N/A' ? `<span class="rb-votes">${imdbVotes} votes</span>` : ''}`;
-    } else if (source.includes('Rotten Tomatoes')) {
-      badge.className = 'rating-badge rb-rt';
-      badge.innerHTML = `<span class="rb-source">Rotten Tomatoes</span><span class="rb-score">${value}</span>`;
-    } else if (source.includes('Metacritic')) {
-      badge.className = 'rating-badge rb-mc';
-      badge.innerHTML = `<span class="rb-source">Metacritic</span><span class="rb-score">${value}</span>`;
-    } else {
-      badge.className = 'rating-badge';
-      badge.innerHTML = `<span class="rb-source">${source}</span><span class="rb-score">${value}</span>`;
+    const src = document.createElement('span');
+    src.className   = 'rb-source';
+    src.textContent = source;
+
+    const sc = document.createElement('span');
+    sc.className   = 'rb-score';
+    sc.textContent = score;
+
+    badge.appendChild(src);
+    badge.appendChild(sc);
+
+    if (votes) {
+      const v = document.createElement('span');
+      v.className   = 'rb-votes';
+      v.textContent = `${votes} votes`;
+      badge.appendChild(v);
     }
 
     container.appendChild(badge);
