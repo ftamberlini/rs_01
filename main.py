@@ -3,8 +3,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
+app.mount("/css", StaticFiles(directory="css"), name="css")
+app.mount("/js",  StaticFiles(directory="js"),  name="js")
 
 CSV_PATH = Path("data/users.csv")
 CSV_HEADERS = ["id", "name", "email", "date_of_birth", "gender", "country", "race"]
@@ -14,10 +17,6 @@ CSV_HEADERS = ["id", "name", "email", "date_of_birth", "gender", "country", "rac
 async def index():
     return FileResponse("index.html")
 
-
-@app.get("/style.css")
-async def styles():
-    return FileResponse("style.css")
 
 
 @app.get("/lookup")

@@ -8,9 +8,8 @@ body {
   font-family: 'Segoe UI', system-ui, sans-serif;
   background-color: #f4f4f0;
   color: #2d2d2d;
-  min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: top;
   justify-content: center;
   padding: 2rem 1rem;
 }
@@ -18,7 +17,7 @@ body {
 .container {
   background-color: #ffffff;
   width: 100%;
-  max-width: 480px;
+  max-width: 800px;
   border-radius: 10px;
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
   overflow: hidden;
@@ -49,6 +48,12 @@ form {
   gap: 1.4rem;
 }
 
+.fieldGroup {
+  display: flex;
+  gap: 0.45rem;
+  justify-content: space-between;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -62,6 +67,17 @@ form {
   letter-spacing: 0.06em;
   color: #6b6b6b;
 }
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6b6b;
+  display: block;
+  margin: 0.45rem 0px;
+}
+
 
 input[type="text"],
 input[type="email"],
@@ -106,7 +122,8 @@ select {
   display: flex;
   gap: 1.4rem;
   flex-wrap: wrap;
-  padding-top: 0.1rem;
+  padding: 10px 0px;
+
 }
 
 .radio-label {
@@ -148,6 +165,44 @@ button[type="submit"]:active {
 }
 
 button[type="submit"]:disabled {
+  background-color: #7a8a99;
+  cursor: default;
+}
+
+.email-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.email-row input[type="email"] {
+  flex: 1;
+  min-width: 0;
+}
+
+#btnSearch {
+  padding: 0.65rem 1.1rem;
+  background-color: #3b3f45;
+  color: #f0ede8;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.18s;
+  flex-shrink: 0;
+}
+
+#btnSearch:hover {
+  background-color: #2d3035;
+}
+
+#btnSearch:active {
+  background-color: #22262a;
+}
+
+#btnSearch:disabled {
   background-color: #7a8a99;
   cursor: default;
 }
