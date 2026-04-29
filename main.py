@@ -10,9 +10,78 @@ app = FastAPI()
 app.mount("/css", StaticFiles(directory="css"), name="css")
 app.mount("/js",  StaticFiles(directory="js"),  name="js")
 
-CSV_PATH   = Path("data/users.csv")
-CSV_HEADERS = ["id", "name", "email", "date_of_birth", "gender", "country", "race"]
-MOVIE_PATH  = Path("data/movie.tsv")
+CSV_PATH     = Path("data/users.csv")
+CSV_HEADERS  = ["id", "name", "email", "date_of_birth", "gender", "country", "race"]
+MOVIE_PATH   = Path("data/movie_imdb.tsv")
+COUNTRY_PATH = Path("data/country.tsv")
+
+
+def _load_tsv(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f, delimiter="\t"))
+
+
+_directors    = {r["ID_DIRECTOR"]: r for r in _load_tsv(Path("data/director.tsv"))}
+_writers_dict = {r["ID_WRITER"]:   r for r in _load_tsv(Path("data/writer.tsv"))}
+
+_movie_dirs: dict[str, list] = {}
+for _r in _load_tsv(Path("data/movie_director.tsv")):
+    _movie_dirs.setdefault(_r["MOVIEID"], []).append(_r["ID_DIRECTOR"])
+
+_movie_wris: dict[str, list] = {}
+for _r in _load_tsv(Path("data/movie_writer.tsv")):
+    _movie_wris.setdefault(_r["MOVIEID"], []).append(_r["ID_WRITER"])
+
+_imdb_genres: dict[str, list[str]] = {}
+for _r in _load_tsv(Path("data/movie_imdb_genres.tsv")):
+    _imdb_genres.setdefault(_r["MOVIEID"], []).append(_r["GENRE"])
+
+_ml_genres: dict[str, list[str]] = {}
+for _r in _load_tsv(Path("data/movie_ml_genres.tsv")):
+    _ml_genres.setdefault(_r["MOVIEID"], []).append(_r["GENRE"])
+
+_movie_tags: dict[str, list[dict]] = {}
+for _r in _load_tsv(Path("data/movie_tags.tsv")):
+    try:
+        count = int(_r["COUNT"])
+    except (ValueError, KeyError):
+        count = 0
+    _movie_tags.setdefault(_r["MOVIEID"], []).append({"tag": _r["TAG"], "count": count})
+
+
+def _genres(movieid: str) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for g in _imdb_genres.get(movieid, []) + _ml_genres.get(movieid, []):
+        key = g.lower()
+        if key not in seen:
+            seen.add(key)
+            result.append(g)
+    return result
+
+
+def _tags(movieid: str) -> list[dict]:
+    return sorted(_movie_tags.get(movieid, []), key=lambda x: x["count"], reverse=True)
+
+
+def _people(movieid: str, role_map: dict, person_dict: dict) -> list[dict]:
+    result = []
+    for pid in role_map.get(movieid, []):
+        p = person_dict.get(pid)
+        if not p:
+            continue
+        entry = {}
+        for key, col in [("name", "NAME"), ("gender", "GENDER"), ("race", "RACE"),
+                          ("nationality", "NATIONALITY"), ("ethnicity", "ETHNICITY"),
+                          ("religion", "RELIGION")]:
+            val = p.get(col, "").strip()
+            if val and val != "N/A":
+                entry[key] = val
+        if entry.get("name"):
+            result.append(entry)
+    return result
 
 
 @app.get("/")
@@ -21,32 +90,45 @@ async def index():
 
 
 
+@app.get("/countries")
+async def countries():
+    if not COUNTRY_PATH.exists():
+        return JSONResponse([])
+    with open(COUNTRY_PATH, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f, delimiter="\t"))
+    return JSONResponse([{"name": r["COUNTRY"], "iso": r["ISO"]} for r in rows])
+
+
 @app.get("/movies")
 async def movies():
     if not MOVIE_PATH.exists():
         return JSONResponse([])
     with open(MOVIE_PATH, newline="", encoding="utf-8") as f:
         rows = [r for r in csv.DictReader(f, delimiter="\t")
-                if r.get("Poster") and r["Poster"] not in ("N/A", "")]
+                if r.get("POSTER") and r["POSTER"] not in ("N/A", "")]
     sample = random.sample(rows, min(10, len(rows)))
     return JSONResponse([
         {
-            "id":       r["imdbID"],
-            "title":    r["Title"],
-            "year":     r["Year"],
-            "released": r["Released"],
-            "runtime":  r["Runtime"],
-            "country":  r["Country"],
-            "language": r["Language"],
-            "genre":    r["Genre"],
-            "director": r["Director"],
-            "writer":   r["Writer"],
-            "cast":       r["Actors"],
-            "plot":       r["Plot"],
-            "poster":     r["Poster"],
-            "ratings":    r["Ratings"],
-            "imdb_votes": r["imdbVotes"],
-            "awards":     r["Awards"],
+            "id":         r["IMDBID"],
+            "title":      r["TITLE"],
+            "year":       r["YEAR"],
+            "released":   r["RELEASED"],
+            "runtime":    r["RUNTIME"],
+            "country":    r["COUNTRY"],
+            "language":   r["LANGUAGE"],
+            "genre":      r["GENRE"],
+            "director":   r["DIRECTOR"],
+            "writer":     r["WRITER"],
+            "cast":       r["ACTORS"],
+            "plot":       r["PLOT"],
+            "poster":     r["POSTER"],
+            "ratings":    r["RATINGS"],
+            "imdb_votes": r["IMDBVOTES"],
+            "awards":     r["AWARDS"],
+            "directors":  _people(r.get("MOVIEID", ""), _movie_dirs, _directors),
+            "writers":    _people(r.get("MOVIEID", ""), _movie_wris, _writers_dict),
+            "genres_list": _genres(r.get("MOVIEID", "")),
+            "tags":        _tags(r.get("MOVIEID", "")),
         }
         for r in sample
     ])

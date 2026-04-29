@@ -21,7 +21,7 @@
         <label class="field-label" for="email">Email</label>
         <div class="email-row">
           <input type="email" id="email" name="email" placeholder="your@email.com" required />
-          <button type="button" id="btnSearch">Search</button>
+          <button type="button" id="btnSearch" class="btn">Search</button>
         </div>
       </div>
 
@@ -30,7 +30,7 @@
 
         <div class="email-confirmed">
           <span id="emailConfirmed"></span>
-          <button type="button" id="btnChangeEmail">Change</button>
+          <button type="button" id="btnChangeEmail" class="btn-ghost">Change</button>
         </div>
 
         <div class="field">
@@ -53,7 +53,7 @@
           </div>
         </div>
         
-        <div classe="fieldGroup">
+        <div class="field-group">
             <div class="field">
               <label for="dob">Date of Birth</label>
               <input type="date" id="dob" name="dob" required />
@@ -76,21 +76,10 @@
               <label for="country">Country</label>
               <select id="country" name="country" required>
                 <option value="" disabled selected>Select your country</option>
-                <option value="BR">Brazil</option>
-                <option value="US">United States</option>
-                <option value="GB">United Kingdom</option>
-                <option value="CA">Canada</option>
-                <option value="AU">Australia</option>
-                <option value="DE">Germany</option>
-                <option value="FR">France</option>
-                <option value="JP">Japan</option>
-                <option value="CN">China</option>
-                <option value="IN">India</option>
-                <option value="other">Other</option>
               </select>
             </div>
         </div>
-        <button type="submit" id="btnSubmit">Save</button>
+        <button type="submit" id="btnSubmit" class="btn">Save</button>
 
       </div>
 
@@ -105,12 +94,12 @@
   </section>
 
   <section class="movie-detail" id="movieDetail">
-    <img class="detail-poster" id="detailPoster" src="" alt="" />
+    <div class="detail-sidebar">
+      <img class="detail-poster" id="detailPoster" src="" alt="" />
+      <div class="detail-ratings" id="detailRatings"></div>
+    </div>
     <div class="detail-body">
-      <div class="detail-header">
-        <h2 class="detail-title" id="detailTitle"></h2>
-        <div class="detail-ratings" id="detailRatings"></div>
-      </div>
+      <h2 class="detail-title" id="detailTitle"></h2>
       <div class="detail-meta">
         <div class="detail-col">
           <div class="meta-item"><span class="meta-label">Year</span><span id="detailYear"></span></div>
@@ -127,6 +116,8 @@
           <div class="meta-item"><span class="meta-label">Awards</span><span id="detailAwards"></span></div>
         </div>
       </div>
+      <div id="detailPeople" class="detail-people"></div>
+      <div id="detailGenresTags" class="detail-genres-tags"></div>
       <div class="detail-plot">
         <span class="meta-label">Sinopse</span>
         <p id="detailPlot"></p>

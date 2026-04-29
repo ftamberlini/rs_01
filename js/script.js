@@ -1,4 +1,18 @@
 const emailInput     = document.getElementById('email');
+const countrySelect  = document.getElementById('country');
+
+(async () => {
+  try {
+    const res  = await fetch('/countries');
+    const list = await res.json();
+    list.forEach(({ name, iso }) => {
+      const opt = document.createElement('option');
+      opt.value       = iso;
+      opt.textContent = name;
+      countrySelect.appendChild(opt);
+    });
+  } catch { /* silently ignore */ }
+})();
 const btnContinue    = document.getElementById('btnSearch');
 const btnChangeEmail = document.getElementById('btnChangeEmail');
 const btnSubmit      = document.getElementById('btnSubmit');
@@ -162,6 +176,96 @@ function showMovieDetail(movie) {
   document.getElementById('detailCast').textContent     = movie.cast;
   document.getElementById('detailAwards').textContent   = movie.awards !== 'N/A' ? movie.awards : '—';
   document.getElementById('detailPlot').textContent     = movie.plot;
+  renderPeople(movie.directors, movie.writers);
+  renderGenresTags(movie.genres_list, movie.tags);
+}
+
+function renderGenresTags(genres, tags) {
+  const container = document.getElementById('detailGenresTags');
+  container.innerHTML = '';
+  if ((!genres || genres.length === 0) && (!tags || tags.length === 0)) return;
+
+  if (genres && genres.length > 0) {
+    const row = document.createElement('div');
+    row.className = 'chip-row';
+
+    const label = document.createElement('span');
+    label.className = 'meta-label';
+    label.textContent = 'Genres';
+    row.appendChild(label);
+
+    genres.forEach(g => {
+      const chip = document.createElement('span');
+      chip.className   = 'chip chip--genre';
+      chip.textContent = g;
+      row.appendChild(chip);
+    });
+    container.appendChild(row);
+  }
+
+  if (tags && tags.length > 0) {
+    const row = document.createElement('div');
+    row.className = 'chip-row';
+
+    const label = document.createElement('span');
+    label.className = 'meta-label';
+    label.textContent = 'Tags';
+    row.appendChild(label);
+
+    tags.forEach(({ tag, count }) => {
+      const chip = document.createElement('span');
+      chip.className   = 'chip chip--tag';
+      chip.textContent = `${tag} (${count})`;
+      row.appendChild(chip);
+    });
+    container.appendChild(row);
+  }
+}
+
+function renderPeople(directors, writers) {
+  const container = document.getElementById('detailPeople');
+  container.innerHTML = '';
+
+  function capitalizeInitials(text) {
+  return text
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  [['Directors', directors], ['Writers', writers]].forEach(([label, people]) => {
+    if (!people || people.length === 0) return;
+
+    const group = document.createElement('div');
+    group.className = 'people-group';
+
+    const heading = document.createElement('span');
+    heading.className = 'meta-label';
+    heading.textContent = label;
+    group.appendChild(heading);
+
+    people.forEach(p => {
+      const attrs = ['gender', 'race', 'nationality', 'ethnicity', 'religion']
+        .filter(k => p[k])
+        .map(k => p[k].toLowerCase())
+        .join(' · ');
+
+      const line = document.createElement('div');
+      line.className = 'person-line';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className   = 'person-line-name';
+      nameSpan.textContent = capitalizeInitials(p.name) || '';
+      line.appendChild(nameSpan);
+
+      if (attrs) line.appendChild(document.createTextNode(' — ' + attrs));
+
+      group.appendChild(line);
+    });
+
+    container.appendChild(group);
+  });
 }
 
 function renderRatings(ratingsStr, imdbVotes) {
