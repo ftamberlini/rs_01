@@ -1,4 +1,5 @@
 import csv
+import random
 from pathlib import Path
 
 from fastapi import FastAPI, Form
@@ -9,14 +10,46 @@ app = FastAPI()
 app.mount("/css", StaticFiles(directory="css"), name="css")
 app.mount("/js",  StaticFiles(directory="js"),  name="js")
 
-CSV_PATH = Path("data/users.csv")
+CSV_PATH   = Path("data/users.csv")
 CSV_HEADERS = ["id", "name", "email", "date_of_birth", "gender", "country", "race"]
+MOVIE_PATH  = Path("data/movie.tsv")
 
 
 @app.get("/")
 async def index():
     return FileResponse("index.html")
 
+
+
+@app.get("/movies")
+async def movies():
+    if not MOVIE_PATH.exists():
+        return JSONResponse([])
+    with open(MOVIE_PATH, newline="", encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f, delimiter="\t")
+                if r.get("Poster") and r["Poster"] not in ("N/A", "")]
+    sample = random.sample(rows, min(10, len(rows)))
+    return JSONResponse([
+        {
+            "id":       r["imdbID"],
+            "title":    r["Title"],
+            "year":     r["Year"],
+            "released": r["Released"],
+            "runtime":  r["Runtime"],
+            "country":  r["Country"],
+            "language": r["Language"],
+            "genre":    r["Genre"],
+            "director": r["Director"],
+            "writer":   r["Writer"],
+            "cast":       r["Actors"],
+            "plot":       r["Plot"],
+            "poster":     r["Poster"],
+            "ratings":    r["Ratings"],
+            "imdb_votes": r["imdbVotes"],
+            "awards":     r["Awards"],
+        }
+        for r in sample
+    ])
 
 
 @app.get("/lookup")
