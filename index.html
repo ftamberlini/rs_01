@@ -8,30 +8,43 @@
   <script src="./js/script.js" defer></script>
 </head>
 <body>
+
   <div class="container">
     <header>
-      <h1>Registration</h1>
-      <p>Please fill in the information below</p>
+      <h1>Movie Recommendendation System Simulator</h1>
+      <p>Find a user to explore their statistics and simulate movie recommendations</p>
     </header>
 
     <form id="registrationForm" novalidate>
 
       <!-- Step 1: email -->
       <div id="stepEmail">
-        <label class="field-label" for="email">Email</label>
+        <label class="field-label" for="email">Search User by User ID or Email</label>
         <div class="email-row">
-          <input type="email" id="email" name="email" placeholder="your@email.com" required />
+          <input type="text" id="email" name="email" placeholder="user_id or user@email.com" required />
           <button type="button" id="btnSearch" class="btn">Search</button>
+          <button type="button" id="btnNewUser" class="btn">New User</button>
         </div>
       </div>
 
-      <!-- Step 2: remaining fields (hidden until lookup) -->
-      <div id="stepFields" hidden>
-
+      <!-- Step 2a: plain-text view of found user -->
+      <div id="stepDisplay" hidden>
         <div class="email-confirmed">
           <span id="emailConfirmed"></span>
           <button type="button" id="btnChangeEmail" class="btn-ghost">Change</button>
         </div>
+        <div class="user-view">
+          <div class="meta-item"><span class="meta-label">UserID (Name)</span><span id="viewName"></span></div>
+          <div class="meta-item"><span class="meta-label">Date of Birth</span><span id="viewDob"></span></div>
+          <div class="meta-item"><span class="meta-label">Gender</span><span id="viewGender"></span></div>
+          <div class="meta-item"><span class="meta-label">Race</span><span id="viewRace"></span></div>
+          <div class="meta-item"><span class="meta-label">Country</span><span id="viewCountry"></span></div>
+          <button type="button" id="btnEditUser" class="btn">&#9998; Edit</button>
+        </div>
+      </div>
+
+      <!-- Step 2b: editable fields (new user or edit mode) -->
+      <div id="stepFields" hidden>
 
         <div class="field">
           <label for="name">Name</label>
@@ -88,12 +101,41 @@
     <div id="successMsg" class="success-msg" hidden></div>
   </div>
 
-  <section class="movies-section">
-    <h2 class="movies-heading">Featured Movies</h2>
-    <div class="movies-grid" id="moviesGrid"></div>
+
+  <section class="user-stats-section" id="userStatsSection" hidden style="display:none">
+    <h2 class="movies-heading">User Rating Statistics</h2>
+    <div class="stats-body">
+      <div class="stats-col-left">
+        <div class="stats-summary" id="statsSummary"></div>
+        <div class="stats-histogram" id="statsHistogram"></div>
+      </div>
+      <div class="stats-col-right">
+        <div class="stats-genres" id="statsGenres"></div>
+        <div class="stats-genres" id="statsContinent"></div>
+        <div class="stats-genres" id="statsLanguages"></div>
+        <div class="stats-genres" id="statsWins"></div>
+        <div class="stats-genres" id="statsNoms"></div>
+      </div>
+    </div>
   </section>
 
-  <section class="movie-detail" id="movieDetail">
+  <section class="user-ratings-section" id="userRatingsSection" hidden style="display:none">
+    <h2 class="movies-heading">User Rated Movies List</h2>
+    <table class="ratings-table" id="ratingsTable">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Genres</th>
+          <th>Tags</th>
+          <th>Rating</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody id="ratingsBody"></tbody>
+    </table>
+  </section>
+
+  <section class="movie-detail" id="movieDetail" hidden style="display:none">
     <div class="detail-sidebar">
       <img class="detail-poster" id="detailPoster" src="" alt="" />
       <div class="detail-ratings" id="detailRatings"></div>
@@ -123,6 +165,11 @@
         <p id="detailPlot"></p>
       </div>
     </div>
+  </section>
+
+  <section class="movies-section" id="moviesSection" hidden style="display:none">
+    <h2 class="movies-heading">Random Recommendation</h2>
+    <div class="movies-grid" id="moviesGrid"></div>
   </section>
 </body>
 </html>

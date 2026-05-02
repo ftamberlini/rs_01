@@ -14,21 +14,41 @@ const countrySelect  = document.getElementById('country');
   } catch { /* silently ignore */ }
 })();
 const btnContinue    = document.getElementById('btnSearch');
+const btnNewUser     = document.getElementById('btnNewUser');
 const btnChangeEmail = document.getElementById('btnChangeEmail');
+const btnEditUser    = document.getElementById('btnEditUser');
 const btnSubmit      = document.getElementById('btnSubmit');
 const stepEmail      = document.getElementById('stepEmail');
+const stepDisplay    = document.getElementById('stepDisplay');
 const stepFields     = document.getElementById('stepFields');
 const emailConfirmed = document.getElementById('emailConfirmed');
 const successMsg     = document.getElementById('successMsg');
 const form           = document.getElementById('registrationForm');
 
 function showStep1() {
-  stepEmail.hidden  = false;
-  stepFields.hidden = true;
-  successMsg.hidden = true;
+  stepEmail.hidden    = false;
+  stepDisplay.hidden  = true;
+  stepFields.hidden   = true;
+  successMsg.hidden   = true;
   emailInput.disabled = false;
-  emailInput.value = '';
+  emailInput.value    = '';
   clearFields();
+  const uss = document.getElementById('userStatsSection');
+  uss.hidden = true; uss.style.display = 'none';
+  const urs = document.getElementById('userRatingsSection');
+  urs.hidden = true; urs.style.display = 'none';
+  document.getElementById('ratingsBody').innerHTML = '';
+}
+
+function showMovieSections() {
+  const ms = document.getElementById('moviesSection');
+  const md = document.getElementById('movieDetail');
+  ms.hidden = false; ms.style.display = '';
+  md.hidden = false; md.style.display = '';
+  if (!_moviesLoaded) {
+    _moviesLoaded = true;
+    loadMovies();
+  }
 }
 
 function clearFields() {
@@ -55,8 +75,10 @@ function setFieldsDisabled(disabled) {
 }
 
 btnContinue.addEventListener('click', async () => {
-  const email = emailInput.value.trim();
-  if (!email || !emailInput.validity.valid) {
+  const query = emailInput.value.trim();
+  const isId    = /^\d+$/.test(query);
+  const isEmail = query.includes('@');
+  if (!query || (!isId && !isEmail)) {
     emailInput.focus();
     return;
   }
@@ -64,25 +86,35 @@ btnContinue.addEventListener('click', async () => {
   btnContinue.disabled = true;
   btnContinue.textContent = 'Searching…';
 
-
   try {
-    const res  = await fetch(`/lookup?email=${encodeURIComponent(email)}`);
+    const res  = await fetch(`/lookup?query=${encodeURIComponent(query)}`);
     const data = await res.json();
 
-    emailConfirmed.textContent = email;
-    emailInput.disabled = true;
-    stepEmail.hidden  = true;
-    stepFields.hidden = false;
-    setFieldsDisabled(false);
-    successMsg.hidden = true;
-
-    if (data.found) {
-      fillFields(data.user);
-      btnSubmit.textContent = 'Update';
-    } else {
-      clearFields();
-      btnSubmit.textContent = 'Save';
+    if (!data.found) {
+      alert('User not found.');
+      return;
     }
+
+    const user = data.user;
+    if (isId) emailInput.value = user.email;
+
+    emailConfirmed.textContent = emailInput.value;
+    emailInput.disabled = true;
+    stepEmail.hidden   = true;
+    stepDisplay.hidden = false;
+    stepFields.hidden  = true;
+    successMsg.hidden  = true;
+
+    document.getElementById('viewName').textContent    = `${user.userid || ''} (${user.name || '—'})`.trim();
+    document.getElementById('viewDob').textContent     = formatDate(user.date_of_birth) || '—';
+    document.getElementById('viewGender').textContent  = user.gender          || '—';
+    document.getElementById('viewRace').textContent    = user.race            || '—';
+    document.getElementById('viewCountry').textContent = user.country         || '—';
+
+    fillFields(user);
+    showMovieSections();
+    loadUserStats(user.userid);
+    loadUserRatings(user.userid);
   } catch {
     alert('Failed to check email. Please try again.');
   } finally {
@@ -91,9 +123,245 @@ btnContinue.addEventListener('click', async () => {
   }
 });
 
+btnNewUser.addEventListener('click', () => {
+  emailInput.disabled = false;
+  emailInput.value    = '';
+  stepEmail.hidden    = true;
+  stepDisplay.hidden  = true;
+  stepFields.hidden   = false;
+  successMsg.hidden   = true;
+  clearFields();
+  btnSubmit.textContent = 'Save';
+  setFieldsDisabled(false);
+  showMovieSections();
+});
+
 btnChangeEmail.addEventListener('click', showStep1);
 
+btnEditUser.addEventListener('click', () => {
+  stepDisplay.hidden = true;
+  stepFields.hidden  = false;
+  successMsg.hidden  = true;
+  btnSubmit.textContent = 'Update';
+  setFieldsDisabled(false);
+});
+
+// ── Movie Detail (by ID) ─────────────────────────────────────────────────────
+
+async function showMovieFromId(movieid) {
+  try {
+    const res  = await fetch(`/movie/${encodeURIComponent(movieid)}`);
+    const data = await res.json();
+    if (!data.title) return;
+    const md = document.getElementById('movieDetail');
+    md.hidden = false; md.style.display = '';
+    showMovieDetail(data);
+  } catch { /* silently ignore */ }
+}
+
+// ── User Stats ───────────────────────────────────────────────────────────────
+
+async function loadUserStats(userid) {
+  const section = document.getElementById('userStatsSection');
+  try {
+    const res  = await fetch(`/user_stats/${encodeURIComponent(userid)}`);
+    const data = await res.json();
+    if (!data.count) { section.hidden = true; section.style.display = 'none'; return; }
+
+    // Summary row
+    const summary = document.getElementById('statsSummary');
+    summary.innerHTML = '';
+    [
+      ['Movies Rated', data.count],
+      ['Avg Rating',   data.avg.toFixed(2)],
+      ['Std Dev',      data.std.toFixed(2)],
+    ].forEach(([label, value]) => {
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+      card.innerHTML = `<span class="stat-value">${value}</span><span class="meta-label">${label}</span>`;
+      summary.appendChild(card);
+    });
+
+    function renderAvgList(elId, label, items, nameKey) {
+      const el = document.getElementById(elId);
+      el.innerHTML = `<span class="meta-label" style="display:block;margin-bottom:0.5rem">${label}</span>`;
+      const row = document.createElement('div');
+      row.className = 'genre-avg-row';
+      items.forEach((item, i) => {
+        if (i > 0) {
+          const sep = document.createElement('span');
+          sep.className = 'genre-sep';
+          sep.textContent = '|';
+          row.appendChild(sep);
+        }
+        const span = document.createElement('span');
+        span.className = 'genre-avg-item';
+        span.innerHTML = `${item[nameKey]} <strong>${item.avg.toFixed(1)}</strong> <span class="genre-count">(${item.count})</span>`;
+        row.appendChild(span);
+      });
+      el.appendChild(row);
+    }
+
+    renderAvgList('statsGenres',    'Avg Rating by Genre',     data.genre_avg,     'genre');
+    renderAvgList('statsContinent', 'Avg Rating by Continent', data.continent_avg, 'continent');
+    renderAvgList('statsLanguages', 'Avg Rating by Language (Top 5)', data.language_avg, 'language');
+    renderAvgList('statsWins', 'Avg Rating by Award Wins',        data.wins_avg, 'wins');
+    renderAvgList('statsNoms', 'Avg Rating by Award Nominations', data.noms_avg, 'noms');
+
+    // Histogram
+    const histEl = document.getElementById('statsHistogram');
+    histEl.innerHTML = '<span class="meta-label" style="display:block;margin-bottom:0.5rem">Rating Distribution</span>';
+    const maxCount = Math.max(...data.histogram.map(h => h.count), 1);
+    data.histogram.forEach(({ rating, count }) => {
+      const row = document.createElement('div');
+      row.className = 'hist-row';
+
+      const lbl = document.createElement('span');
+      lbl.className = 'hist-label';
+      lbl.textContent = rating;
+
+      const track = document.createElement('div');
+      track.className = 'hist-track';
+
+      const bar = document.createElement('div');
+      bar.className = 'hist-bar';
+      bar.style.width = `${(count / maxCount) * 100}%`;
+
+      const cnt = document.createElement('span');
+      cnt.className = 'hist-count';
+      cnt.textContent = count || '';
+
+      track.appendChild(bar);
+      row.appendChild(lbl);
+      row.appendChild(track);
+      row.appendChild(cnt);
+      histEl.appendChild(row);
+    });
+
+    section.hidden = false;
+    section.style.display = '';
+  } catch { /* silently ignore */ }
+}
+
+// ── User Ratings ─────────────────────────────────────────────────────────────
+
+let _ratingsData = [];
+let _ratingsPage = 0;
+const RATINGS_PAGE_SIZE = 5;
+
+async function loadUserRatings(userid) {
+  const section = document.getElementById('userRatingsSection');
+  _ratingsData = [];
+  _ratingsPage = 0;
+
+  try {
+    const res  = await fetch(`/user_ratings/${encodeURIComponent(userid)}`);
+    const rows = await res.json();
+
+    if (rows.length === 0) {
+      section.hidden = true;
+      section.style.display = 'none';
+      return;
+    }
+
+    _ratingsData = rows;
+    renderRatingsPage(0);
+    section.hidden = false;
+    section.style.display = '';
+    showMovieFromId(rows[0].movieid);
+  } catch { /* silently ignore */ }
+}
+
+function renderRatingsPage(page) {
+  const tbody = document.getElementById('ratingsBody');
+  tbody.innerHTML = '';
+
+  const start = page * RATINGS_PAGE_SIZE;
+  _ratingsData.slice(start, start + RATINGS_PAGE_SIZE).forEach(({ movieid, title, genres_ml, tags, rating, date }) => {
+    const tr = document.createElement('tr');
+    tr.className = 'ratings-row';
+    tr.addEventListener('click', () => showMovieFromId(movieid));
+
+    const tdTitle = document.createElement('td');
+    tdTitle.textContent = title;
+    tdTitle.title = movieid;
+
+    const tdGenres = document.createElement('td');
+    const genreWrap = document.createElement('div');
+    genreWrap.className = 'chip-cell';
+    genres_ml.forEach(g => {
+      const chip = document.createElement('span');
+      chip.className = 'chip chip--genre';
+      chip.textContent = g;
+      genreWrap.appendChild(chip);
+    });
+    tdGenres.appendChild(genreWrap);
+
+    const tdTags = document.createElement('td');
+    const tagWrap = document.createElement('div');
+    tagWrap.className = 'chip-cell';
+    tags.forEach(t => {
+      const chip = document.createElement('span');
+      chip.className = 'chip chip--tag';
+      chip.textContent = t;
+      tagWrap.appendChild(chip);
+    });
+    tdTags.appendChild(tagWrap);
+
+    const tdRating = document.createElement('td');
+    tdRating.className = 'rating-cell';
+    tdRating.textContent = rating.toFixed(1);
+
+    const tdDate = document.createElement('td');
+    tdDate.textContent = date;
+
+    tr.appendChild(tdTitle);
+    tr.appendChild(tdGenres);
+    tr.appendChild(tdTags);
+    tr.appendChild(tdRating);
+    tr.appendChild(tdDate);
+    tbody.appendChild(tr);
+  });
+
+  renderRatingsPagination(page);
+}
+
+function renderRatingsPagination(page) {
+  const total = Math.ceil(_ratingsData.length / RATINGS_PAGE_SIZE);
+  let pag = document.getElementById('ratingsPagination');
+  if (!pag) {
+    pag = document.createElement('div');
+    pag.id = 'ratingsPagination';
+    pag.className = 'ratings-pagination';
+    document.getElementById('userRatingsSection').appendChild(pag);
+  }
+  pag.innerHTML = '';
+  if (total <= 1) return;
+
+  const btnPrev = document.createElement('button');
+  btnPrev.className = 'btn btn--sm';
+  btnPrev.textContent = '‹ Prev';
+  btnPrev.disabled = page === 0;
+  btnPrev.addEventListener('click', () => { _ratingsPage--; renderRatingsPage(_ratingsPage); });
+
+  const info = document.createElement('span');
+  info.className = 'pagination-info';
+  info.textContent = `${page + 1} / ${total}  (${_ratingsData.length} movies)`;
+
+  const btnNext = document.createElement('button');
+  btnNext.className = 'btn btn--sm';
+  btnNext.textContent = 'Next ›';
+  btnNext.disabled = page >= total - 1;
+  btnNext.addEventListener('click', () => { _ratingsPage++; renderRatingsPage(_ratingsPage); });
+
+  pag.appendChild(btnPrev);
+  pag.appendChild(info);
+  pag.appendChild(btnNext);
+}
+
 // ── Movies ──────────────────────────────────────────────────────────────────
+
+let _moviesLoaded = false;
 
 const POSTER_PLACEHOLDER = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450">' +
@@ -347,8 +615,6 @@ function createStarRating() {
 
   return container;
 }
-
-loadMovies();
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
