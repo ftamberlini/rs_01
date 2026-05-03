@@ -1,9 +1,10 @@
 import csv
+import math
 import random
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -11,10 +12,12 @@ app = FastAPI()
 app.mount("/css", StaticFiles(directory="css"), name="css")
 app.mount("/js",  StaticFiles(directory="js"),  name="js")
 
-CSV_PATH     = Path("data/users.csv")
-CSV_HEADERS  = ["userid", "name", "email", "date_of_birth", "gender", "country", "race"]
-MOVIE_PATH   = Path("data/movie_imdb.tsv")
-COUNTRY_PATH = Path("data/country.tsv")
+CSV_PATH          = Path("data/users.csv")
+CSV_HEADERS       = ["userid", "name", "email", "date_of_birth", "gender", "country", "race"]
+MOVIE_PATH        = Path("data/movie_imdb.tsv")
+COUNTRY_PATH      = Path("data/country.tsv")
+NEW_RATINGS_PATH  = Path("data/new_user_ratings.csv")
+NEW_RATINGS_HDRS  = ["USERID", "MOVIEID", "RATING", "TIMESTAMP"]
 
 
 def _load_tsv(path: Path) -> list[dict]:
@@ -83,6 +86,21 @@ for _r in _load_tsv(Path("data/movie_country.tsv")):
     existing = _movie_continents.setdefault(_r["MOVIEID"], [])
     if continent not in existing:
         existing.append(continent)
+
+_all_ratings_flat: list[float] = []
+for _uid_ratings in _user_ratings.values():
+    for _r in _uid_ratings:
+        try:
+            _all_ratings_flat.append(float(_r["RATING"]))
+        except (ValueError, KeyError):
+            pass
+
+_global_n_users   = len(_user_ratings)
+_global_avg_movies = round(len(_all_ratings_flat) / _global_n_users, 1) if _global_n_users else 0
+_global_avg_rating = round(sum(_all_ratings_flat) / len(_all_ratings_flat), 2) if _all_ratings_flat else 0
+_global_std        = round(math.sqrt(
+    sum((v - _global_avg_rating) ** 2 for v in _all_ratings_flat) / len(_all_ratings_flat)
+), 2) if _all_ratings_flat else 0
 
 _user_tags: dict[tuple, list[str]] = {}
 _ut_path = Path("data/user_tags.csv")
@@ -199,15 +217,28 @@ async def movie_detail_by_id(movieid: str):
 
 
 @app.get("/movies")
-async def movies():
+async def movies(userid: str = ""):
     if not MOVIE_PATH.exists():
         return JSONResponse([])
+
+    rated: set[str] = set()
+    if userid:
+        for r in _user_ratings.get(userid, []):
+            rated.add(r["MOVIEID"])
+        if NEW_RATINGS_PATH.exists():
+            with open(NEW_RATINGS_PATH, newline="", encoding="utf-8") as f:
+                for r in csv.DictReader(f):
+                    if r.get("USERID") == userid:
+                        rated.add(r.get("MOVIEID", ""))
+
     with open(MOVIE_PATH, newline="", encoding="utf-8") as f:
         rows = [r for r in csv.DictReader(f, delimiter="\t")
-                if r.get("POSTER") and r["POSTER"] not in ("N/A", "")]
+                if r.get("POSTER") and r["POSTER"] not in ("N/A", "")
+                and r.get("MOVIEID", "") not in rated]
     sample = random.sample(rows, min(10, len(rows)))
     return JSONResponse([
         {
+            "movieid":    r.get("MOVIEID", ""),
             "id":         r["IMDBID"],
             "title":      r["TITLE"],
             "year":       r["YEAR"],
@@ -235,7 +266,6 @@ async def movies():
 
 @app.get("/user_stats/{userid}")
 async def user_stats(userid: str):
-    import math
     ratings = _user_ratings.get(userid, [])
     if not ratings:
         return JSONResponse({})
@@ -248,12 +278,19 @@ async def user_stats(userid: str):
         return "+100"
 
     values = []
-    genre_totals,     genre_counts     = {}, {}
-    continent_totals, continent_counts = {}, {}
-    language_totals,  language_counts  = {}, {}
-    wins_totals,      wins_counts      = {}, {}
-    noms_totals,      noms_counts      = {}, {}
+    genre_totals,      genre_counts      = {}, {}
+    continent_totals,  continent_counts  = {}, {}
+    language_totals,   language_counts   = {}, {}
+    wins_totals,       wins_counts       = {}, {}
+    sp_wins_totals,    sp_wins_counts    = {}, {}
+    sp_noms_totals,    sp_noms_counts    = {}, {}
     bins = {f"{i / 2:.1f}": 0 for i in range(1, 11)}
+
+    _SPECIAL_AWARDS = [
+        ("Oscar", "OSCAR_WINNING",  "OSCAR_NOMINATION"),
+        ("BAFTA", "BAFTA_WINNING",  "BAFTA_NOMINATION"),
+        ("Emmy",  "EMMY_WINNING",   "EMMY_NOMINATION"),
+    ]
 
     for r in ratings:
         try:
@@ -283,7 +320,6 @@ async def user_stats(userid: str):
         awards = _movie_imdb_awards.get(imdbid, {})
         for field, totals, counts in [
             ("wins", wins_totals, wins_counts),
-            ("noms", noms_totals, noms_counts),
         ]:
             raw = awards.get(field, "")
             try:
@@ -293,6 +329,27 @@ async def user_stats(userid: str):
             bkt = _award_bucket(n)
             totals[bkt] = totals.get(bkt, 0) + v
             counts[bkt] = counts.get(bkt, 0) + 1
+
+        imdb_row = _imdb_rows.get(imdbid, {})
+        has_sp_win = has_sp_nom = False
+        for label, col_w, col_n in _SPECIAL_AWARDS:
+            def _int(val):
+                try: return int(float(val)) if val else 0
+                except ValueError: return 0
+            if _int(imdb_row.get(col_w, "")):
+                has_sp_win = True
+                sp_wins_totals[label] = sp_wins_totals.get(label, 0) + v
+                sp_wins_counts[label] = sp_wins_counts.get(label, 0) + 1
+            if _int(imdb_row.get(col_n, "")):
+                has_sp_nom = True
+                sp_noms_totals[label] = sp_noms_totals.get(label, 0) + v
+                sp_noms_counts[label] = sp_noms_counts.get(label, 0) + 1
+        if not has_sp_win:
+            sp_wins_totals["No Special Awards"] = sp_wins_totals.get("No Special Awards", 0) + v
+            sp_wins_counts["No Special Awards"] = sp_wins_counts.get("No Special Awards", 0) + 1
+        if not has_sp_nom:
+            sp_noms_totals["No Special Nominations"] = sp_noms_totals.get("No Special Nominations", 0) + v
+            sp_noms_counts["No Special Nominations"] = sp_noms_counts.get("No Special Nominations", 0) + 1
 
     if not values:
         return JSONResponse({})
@@ -321,15 +378,22 @@ async def user_stats(userid: str):
     lang_top5.sort(key=lambda x: x["avg"], reverse=True)
 
     return JSONResponse({
-        "count":         len(values),
-        "avg":           round(avg, 2),
-        "std":           round(std, 2),
-        "genre_avg":     _avg_list(genre_totals,     genre_counts,     "genre"),
-        "continent_avg": _avg_list(continent_totals, continent_counts, "continent"),
-        "language_avg":  lang_top5,
-        "wins_avg":      _award_list(wins_totals,    wins_counts,      "wins"),
-        "noms_avg":      _award_list(noms_totals,    noms_counts,      "noms"),
-        "histogram":     [{"rating": k, "count": v} for k, v in bins.items()],
+        "count":          len(values),
+        "avg":            round(avg, 2),
+        "std":            round(std, 2),
+        "genre_avg":      _avg_list(genre_totals,     genre_counts,     "genre"),
+        "continent_avg":  _avg_list(continent_totals, continent_counts, "continent"),
+        "language_avg":   lang_top5,
+        "wins_avg":       _award_list(wins_totals,    wins_counts,      "wins"),
+
+        "sp_wins_avg":    _avg_list(sp_wins_totals,   sp_wins_counts,   "label"),
+        "sp_noms_avg":    _avg_list(sp_noms_totals,   sp_noms_counts,   "label"),
+        "histogram":      [{"rating": k, "count": v} for k, v in bins.items()],
+        "global": {
+            "avg_movies": _global_avg_movies,
+            "avg_rating": _global_avg_rating,
+            "std":        _global_std,
+        },
     })
 
 
@@ -424,3 +488,33 @@ async def submit(
         writer.writerows(rows)
 
     return JSONResponse({"status": "ok"})
+
+
+@app.post("/new_ratings")
+async def new_ratings(request: Request):
+    body = await request.json()
+    userid  = str(body.get("userid", "")).strip()
+    ratings = body.get("ratings", [])
+    if not userid or not ratings:
+        return JSONResponse({"status": "ok", "saved": 0})
+
+    NEW_RATINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = NEW_RATINGS_PATH.exists()
+    ts = int(datetime.now(timezone.utc).timestamp())
+
+    with open(NEW_RATINGS_PATH, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=NEW_RATINGS_HDRS)
+        if not file_exists:
+            writer.writeheader()
+        for r in ratings:
+            movieid = str(r.get("movieid", "")).strip()
+            rating  = r.get("rating", 0)
+            if movieid and rating:
+                writer.writerow({
+                    "USERID":    userid,
+                    "MOVIEID":   movieid,
+                    "RATING":    rating,
+                    "TIMESTAMP": ts,
+                })
+
+    return JSONResponse({"status": "ok", "saved": len(ratings)})

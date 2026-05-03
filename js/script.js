@@ -1,3 +1,10 @@
+// This file has been split into:
+//   previous_rating.js  — Previous Ratings tab (stats, ratings table)
+//   new_ratings.js      — New Ratings tab (movies grid, star rating, save)
+//   recommender.js      — Recommender tab
+//   main.js             — Global state, shared movie detail, form/container handlers
+// It is no longer loaded by index.html.
+
 const emailInput     = document.getElementById('email');
 const countrySelect  = document.getElementById('country');
 
@@ -25,6 +32,45 @@ const emailConfirmed = document.getElementById('emailConfirmed');
 const successMsg     = document.getElementById('successMsg');
 const form           = document.getElementById('registrationForm');
 
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.section-toggle');
+  if (!btn) return;
+  const targetId = btn.dataset.target;
+  const content  = document.getElementById(targetId);
+  if (!content) return;
+  const collapsed = content.style.display === 'none';
+  content.style.display = collapsed ? '' : 'none';
+  btn.textContent = collapsed ? '−' : '+';
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabId = btn.dataset.tab;
+    switchTab(tabId);
+    if (tabId === 'tabNew' && !_moviesLoaded) {
+      _moviesLoaded = true;
+      loadMovies();
+    }
+  });
+});
+
+function showLoader() {
+  document.getElementById('loadingOverlay').hidden = false;
+}
+
+function hideLoader() {
+  document.getElementById('loadingOverlay').hidden = true;
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.style.display = p.id === tabId ? '' : 'none';
+  });
+}
+
 function showStep1() {
   stepEmail.hidden    = false;
   stepDisplay.hidden  = true;
@@ -33,22 +79,29 @@ function showStep1() {
   emailInput.disabled = false;
   emailInput.value    = '';
   clearFields();
+
+  document.getElementById('mainTabs').style.display = 'none';
+  switchTab('tabPrevious');
+
   const uss = document.getElementById('userStatsSection');
   uss.hidden = true; uss.style.display = 'none';
   const urs = document.getElementById('userRatingsSection');
   urs.hidden = true; urs.style.display = 'none';
   document.getElementById('ratingsBody').innerHTML = '';
+  const md = document.getElementById('movieDetail');
+  md.hidden = true; md.style.display = 'none';
+  const mdn = document.getElementById('movieDetailNew');
+  mdn.hidden = true; mdn.style.display = 'none';
+  document.getElementById('moviesGrid').innerHTML = '';
+  document.getElementById('recResults').innerHTML = '';
+  const srm = document.getElementById('saveRatingsMsg');
+  srm.style.display = 'none'; srm.textContent = '';
+  _moviesLoaded = false;
+  _currentUserId = null;
 }
 
 function showMovieSections() {
-  const ms = document.getElementById('moviesSection');
-  const md = document.getElementById('movieDetail');
-  ms.hidden = false; ms.style.display = '';
-  md.hidden = false; md.style.display = '';
-  if (!_moviesLoaded) {
-    _moviesLoaded = true;
-    loadMovies();
-  }
+  document.getElementById('mainTabs').style.display = '';
 }
 
 function clearFields() {
@@ -111,10 +164,16 @@ btnContinue.addEventListener('click', async () => {
     document.getElementById('viewRace').textContent    = user.race            || '—';
     document.getElementById('viewCountry').textContent = user.country         || '—';
 
+    _currentUserId = user.userid;
     fillFields(user);
     showMovieSections();
-    loadUserStats(user.userid);
-    loadUserRatings(user.userid);
+    showLoader();
+    try {
+      await Promise.all([loadUserStats(user.userid), loadUserRatings(user.userid)]);
+      if (_ratingsData.length > 0) await showMovieFromId(_ratingsData[0].movieid);
+    } finally {
+      hideLoader();
+    }
   } catch {
     alert('Failed to check email. Please try again.');
   } finally {
@@ -148,14 +207,21 @@ btnEditUser.addEventListener('click', () => {
 
 // ── Movie Detail (by ID) ─────────────────────────────────────────────────────
 
-async function showMovieFromId(movieid) {
+async function showMovieFromId(movieid, sfx = '') {
   try {
     const res  = await fetch(`/movie/${encodeURIComponent(movieid)}`);
     const data = await res.json();
     if (!data.title) return;
-    const md = document.getElementById('movieDetail');
+    const md = document.getElementById('movieDetail' + sfx);
     md.hidden = false; md.style.display = '';
-    showMovieDetail(data);
+    const contentId = 'movieDetailContent' + sfx;
+    const content   = document.getElementById(contentId);
+    if (content && content.style.display === 'none') {
+      content.style.display = '';
+      const btn = document.querySelector(`.section-toggle[data-target="${contentId}"]`);
+      if (btn) btn.textContent = '−';
+    }
+    showMovieDetail(data, sfx);
   } catch { /* silently ignore */ }
 }
 
@@ -171,14 +237,18 @@ async function loadUserStats(userid) {
     // Summary row
     const summary = document.getElementById('statsSummary');
     summary.innerHTML = '';
+    const g = data.global;
     [
-      ['Movies Rated', data.count],
-      ['Avg Rating',   data.avg.toFixed(2)],
-      ['Std Dev',      data.std.toFixed(2)],
-    ].forEach(([label, value]) => {
+      ['Movies Rated', data.count,          'Average per user',  g.avg_movies],
+      ['Average Rating',   data.avg.toFixed(2), 'Global Average',    g.avg_rating.toFixed(2)],
+      ['Std Dev',      data.std.toFixed(2), 'Global Std Dev',    g.std.toFixed(2)],
+    ].forEach(([label, value, globalLabel, globalVal]) => {
       const card = document.createElement('div');
       card.className = 'stat-card';
-      card.innerHTML = `<span class="stat-value">${value}</span><span class="meta-label">${label}</span>`;
+      card.innerHTML =
+        `<span class="stat-value">${value}</span>` +
+        `<span class="meta-label" style="text-align: center;">${label}</span>` +
+        `<span class="stat-global"><strong>${globalVal}</strong> ${globalLabel}</span>`;
       summary.appendChild(card);
     });
 
@@ -205,8 +275,9 @@ async function loadUserStats(userid) {
     renderAvgList('statsGenres',    'Avg Rating by Genre',     data.genre_avg,     'genre');
     renderAvgList('statsContinent', 'Avg Rating by Continent', data.continent_avg, 'continent');
     renderAvgList('statsLanguages', 'Avg Rating by Language (Top 5)', data.language_avg, 'language');
-    renderAvgList('statsWins', 'Avg Rating by Award Wins',        data.wins_avg, 'wins');
-    renderAvgList('statsNoms', 'Avg Rating by Award Nominations', data.noms_avg, 'noms');
+    renderAvgList('statsWins',   'Avg Rating by Award Wins',           data.wins_avg,    'wins');
+    renderAvgList('statsSpWins', 'Avg Rating by Special Award Wins',   data.sp_wins_avg, 'label');
+    renderAvgList('statsSpNoms', 'Avg Rating by Special Award Nominations', data.sp_noms_avg, 'label');
 
     // Histogram
     const histEl = document.getElementById('statsHistogram');
@@ -268,7 +339,6 @@ async function loadUserRatings(userid) {
     renderRatingsPage(0);
     section.hidden = false;
     section.style.display = '';
-    showMovieFromId(rows[0].movieid);
   } catch { /* silently ignore */ }
 }
 
@@ -361,7 +431,8 @@ function renderRatingsPagination(page) {
 
 // ── Movies ──────────────────────────────────────────────────────────────────
 
-let _moviesLoaded = false;
+let _moviesLoaded  = false;
+let _currentUserId = null;
 
 const POSTER_PLACEHOLDER = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450">' +
@@ -371,25 +442,41 @@ const POSTER_PLACEHOLDER = `data:image/svg+xml,${encodeURIComponent(
 )}`;
 
 async function loadMovies() {
+  const grid = document.getElementById('moviesGrid');
+  grid.innerHTML = '';
+  const url = '/movies' + (_currentUserId ? `?userid=${encodeURIComponent(_currentUserId)}` : '');
   try {
-    const res    = await fetch('/movies');
+    const res    = await fetch(url);
     const movies = await res.json();
-    const grid   = document.getElementById('moviesGrid');
     const cards  = [];
 
     movies.forEach(m => {
-      const card = createMovieCard(m, () => {
+      const card = createMovieCard(m, async () => {
         cards.forEach(c => c.classList.remove('active'));
         card.classList.add('active');
-        showMovieDetail(m);
+        if (m.movieid) {
+          await showMovieFromId(m.movieid, 'New');
+        } else {
+          const md = document.getElementById('movieDetailNew');
+          md.hidden = false; md.style.display = '';
+          showMovieDetail(m, 'New');
+        }
+        document.getElementById('movieDetailNew').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
       grid.appendChild(card);
       cards.push(card);
     });
 
-    if (cards.length > 0) {
+    if (movies.length > 0) {
       cards[0].classList.add('active');
-      showMovieDetail(movies[0]);
+      const first = movies[0];
+      if (first.movieid) {
+        await showMovieFromId(first.movieid, 'New');
+      } else {
+        const md = document.getElementById('movieDetailNew');
+        md.hidden = false; md.style.display = '';
+        showMovieDetail(first, 'New');
+      }
     }
   } catch { /* server may not be running in static preview */ }
 }
@@ -419,37 +506,38 @@ function createMovieCard(movie, onTitleClick) {
 
   info.appendChild(title);
   info.appendChild(year);
-  info.appendChild(createStarRating());
+  info.appendChild(createStarRating(movie.movieid || ''));
 
   card.appendChild(img);
   card.appendChild(info);
   return card;
 }
 
-function showMovieDetail(movie) {
-  const detailPoster   = document.getElementById('detailPoster');
+function showMovieDetail(movie, sfx = '') {
+  const g = id => document.getElementById(id + sfx);
+  const detailPoster   = g('detailPoster');
   detailPoster.alt     = movie.title;
   detailPoster.onerror = () => { detailPoster.onerror = null; detailPoster.src = POSTER_PLACEHOLDER; };
   detailPoster.src     = movie.poster;
-  document.getElementById('detailTitle').textContent  = movie.title;
-  renderRatings(movie.ratings);
-  document.getElementById('detailYear').textContent   = movie.year;
-  document.getElementById('detailReleased').textContent = formatDate(movie.released);
-  document.getElementById('detailRuntime').textContent  = movie.runtime;
-  document.getElementById('detailCountry').textContent  = movie.country;
-  document.getElementById('detailLanguage').textContent = movie.language;
-  document.getElementById('detailGenre').textContent    = movie.genre;
-  document.getElementById('detailDirector').textContent = movie.director;
-  document.getElementById('detailWriter').textContent   = movie.writer;
-  document.getElementById('detailCast').textContent     = movie.cast;
-  document.getElementById('detailAwards').textContent   = movie.awards !== 'N/A' ? movie.awards : '—';
-  document.getElementById('detailPlot').textContent     = movie.plot;
-  renderPeople(movie.directors, movie.writers);
-  renderGenresTags(movie.genres_imdb, movie.genres_ml, movie.tags);
+  g('detailTitle').textContent    = movie.title;
+  renderRatings(movie.ratings, sfx);
+  g('detailYear').textContent     = movie.year;
+  g('detailReleased').textContent = formatDate(movie.released);
+  g('detailRuntime').textContent  = movie.runtime;
+  g('detailCountry').textContent  = movie.country;
+  g('detailLanguage').textContent = movie.language;
+  g('detailGenre').textContent    = movie.genre;
+  g('detailDirector').textContent = movie.director;
+  g('detailWriter').textContent   = movie.writer;
+  g('detailCast').textContent     = movie.cast;
+  g('detailAwards').textContent   = movie.awards !== 'N/A' ? movie.awards : '—';
+  g('detailPlot').textContent     = movie.plot;
+  renderPeople(movie.directors, movie.writers, sfx);
+  renderGenresTags(movie.genres_imdb, movie.genres_ml, movie.tags, sfx);
 }
 
-function renderGenresTags(genresImdb, genresMl, tags) {
-  const container = document.getElementById('detailGenresTags');
+function renderGenresTags(genresImdb, genresMl, tags, sfx = '') {
+  const container = document.getElementById('detailGenresTags' + sfx);
   container.innerHTML = '';
 
   function addChipRow(label, items, chipClass, textFn) {
@@ -474,8 +562,8 @@ function renderGenresTags(genresImdb, genresMl, tags) {
   addChipRow('Tags', tags, 'chip--tag', ({ tag, count }) => `${tag} (${count})`);
 }
 
-function renderPeople(directors, writers) {
-  const container = document.getElementById('detailPeople');
+function renderPeople(directors, writers, sfx = '') {
+  const container = document.getElementById('detailPeople' + sfx);
   container.innerHTML = '';
 
   function capitalizeInitials(text) {
@@ -530,8 +618,8 @@ function formatDate(raw) {
   return `${dd} - ${mmm} - ${yyyy}`;
 }
 
-function renderRatings(ratings) {
-  const container = document.getElementById('detailRatings');
+function renderRatings(ratings, sfx = '') {
+  const container = document.getElementById('detailRatings' + sfx);
   container.innerHTML = '';
   if (!ratings || ratings.length === 0) return;
 
@@ -568,9 +656,10 @@ function renderRatings(ratings) {
   });
 }
 
-function createStarRating() {
+function createStarRating(movieId = '') {
   const container = document.createElement('div');
   container.className = 'star-rating';
+  if (movieId) container.dataset.movieid = movieId;
 
   let current  = 0;
   const items  = [];
@@ -599,6 +688,7 @@ function createStarRating() {
     wrap.addEventListener('click', (e) => {
       const { left, width } = wrap.getBoundingClientRect();
       current = (e.clientX - left) < width / 2 ? i - 0.5 : i;
+      container.dataset.rating = String(current);
       paint(current);
     });
 
@@ -615,6 +705,63 @@ function createStarRating() {
 
   return container;
 }
+
+// ── New Ratings tab ──────────────────────────────────────────────────────────
+
+document.getElementById('btnSaveRatings').addEventListener('click', async () => {
+  const msg = document.getElementById('saveRatingsMsg');
+  if (!_currentUserId) {
+    showSaveMsg(msg, 'No user selected.', 'error');
+    return;
+  }
+
+  const ratings = [];
+  document.querySelectorAll('#moviesGrid .star-rating').forEach(el => {
+    const rating  = parseFloat(el.dataset.rating  || '0');
+    const movieid = el.dataset.movieid || '';
+    if (movieid && rating > 0) ratings.push({ movieid, rating });
+  });
+
+  if (ratings.length === 0) {
+    showSaveMsg(msg, 'Rate at least one movie before saving.', 'warn');
+    return;
+  }
+
+  const btn = document.getElementById('btnSaveRatings');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  msg.style.display = 'none';
+
+  try {
+    const res = await fetch('/new_ratings', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ userid: _currentUserId, ratings }),
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    showSaveMsg(msg, `${data.saved} rating(s) saved. Loading new movies…`, 'success');
+    await loadMovies();
+    showSaveMsg(msg, `${data.saved} rating(s) saved successfully. New movies loaded.`, 'success');
+  } catch {
+    showSaveMsg(msg, 'Failed to save ratings. Please try again.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save New Ratings';
+  }
+});
+
+function showSaveMsg(el, text, type) {
+  el.textContent = text;
+  el.className = `save-ratings-msg save-ratings-msg--${type}`;
+  el.style.display = '';
+}
+
+// ── Recommender tab ──────────────────────────────────────────────────────────
+
+document.getElementById('btnSimulateRec').addEventListener('click', () => {
+  alert('Simulate Recommendations: coming soon.');
+});
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
